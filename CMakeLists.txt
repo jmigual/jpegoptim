@@ -108,8 +108,7 @@ if(MSVC)
         set(BINARY_OUTPUT_PATH "$<CONFIG>/${CMAKE_VS_PLATFORM_NAME}")
     endif()
     set_target_properties(${PROJECT_NAME} PROPERTIES
-        RUNTIME_OUTPUT_DIRECTORY_DEBUG ${BINARY_OUTPUT_PATH}
-        RUNTIME_OUTPUT_DIRECTORY_RELEASE ${BINARY_OUTPUT_PATH}
+        RUNTIME_OUTPUT_DIRECTORY ${BINARY_OUTPUT_PATH}
     )
 endif()
 
@@ -298,40 +297,27 @@ if(USE_MOZJPEG)
     # Link with mozjpeg.
     # Version tree: https://github.com/mozilla/mozjpeg/tree/fd569212597dcc249752bd38ea58a4e2072da24f
 
-    include(ExternalProject)
+    include(FetchContent)
 
     if(WITH_ARITH)
         set(ARITH_FLAGS -DWITH_ARITH_DEC=1 -DWITH_ARITH_ENC=1)
         set(JPEGLIB_SUPPORTS_ARITH_CODE 1)
     endif()
 
-    ExternalProject_Add(mozjpeg_lib
+    set(PNG_SUPPORTED CACHE INTERNAL 0)
+    set(WITH_TURBOJPEG CACHE INTERNAL 0)
+    set(ENABLE_SHARED CACHE INTERNAL 0)
+
+    FetchContent_Declare(mozjpeg_lib
          GIT_REPOSITORY https://github.com/mozilla/mozjpeg.git
          GIT_TAG fd569212597dcc249752bd38ea58a4e2072da24f
-         PREFIX ${CMAKE_CURRENT_BINARY_DIR}/mozjpeg
-         CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_CURRENT_BINARY_DIR}/mozjpeg -DPNG_SUPPORTED=0 -DWITH_TURBOJPEG=0 -DENABLE_SHARED=0 ${ARITH_FLAGS}
+         SYSTEM
     )
+    FetchContent_MakeAvailable(mozjpeg_lib)
 
-
-    # Building and linking mozjpeg as a library, as explained here https://mirkokiefer.com/cmake-by-example-f95eb47d45b1
-
-    ExternalProject_Get_Property(mozjpeg_lib install_dir)
-    add_library(mozjpeg STATIC IMPORTED)
-    if(MSVC)
-        set_property(TARGET mozjpeg PROPERTY IMPORTED_LOCATION ${install_dir}/lib/jpeg-static.lib)
-    else()
-        target_link_libraries(mozjpeg INTERFACE m)
-        set_property(TARGET mozjpeg PROPERTY IMPORTED_LOCATION ${install_dir}/lib/libjpeg.a)
-    endif()
-    add_dependencies(mozjpeg mozjpeg_lib)
-    target_include_directories(${PROJECT_NAME} BEFORE PRIVATE ${install_dir}/include)
-    target_link_libraries(${PROJECT_NAME} mozjpeg)
-    add_dependencies(${PROJECT_NAME} mozjpeg)
-
-    # Note: check_include_file, check_symbol_exists, check_struct_has_member, and check_c_source_compiles
-    # cannot be used on ExternalProject dependencies because they are not compiled until build time, while check_*
-    # functions run during the initial CMake configuration step.
-    # Since the version is hardcoded above, feature checks may be set as constants as a workaround.
+    get_target_property(mozjpeg_include_dir jpeg-static INCLUDE_DIRECTORIES)
+    target_include_directories(${PROJECT_NAME} BEFORE PRIVATE ${mozjpeg_include_dir})
+    target_link_libraries(${PROJECT_NAME} PUBLIC jpeg-static)
 
     set(HAVE_JINT_DC_SCAN_OPT_MODE 1)
 
